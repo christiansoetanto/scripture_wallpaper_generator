@@ -1,0 +1,13 @@
+{
+  "functions": {
+    "api/image.py": {
+      "runtime": "python3.9"
+    }
+  },
+  "routes": [
+    {
+      "src": "/api/image",
+      "dest": "/api/image.py"
+    }
+  ]
+}

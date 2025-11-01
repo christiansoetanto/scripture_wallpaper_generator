@@ -523,6 +523,8 @@ class CanvasWallpaperEditor {
             fetchBtn: document.getElementById('fetch-verse-btn'),
             pasteBtn: document.getElementById('paste-verse-btn'),
             fetchDownloadBtn: document.getElementById('fetch-download-btn'),
+            textEditor: document.getElementById('verse-text-editor'),
+            textEditorSection: document.getElementById('text-editor-section'),
             topBoundary: document.getElementById('canvas-top-boundary'),
             topBoundaryValue: document.getElementById('canvas-top-boundary-value'),
             bottomBoundary: document.getElementById('canvas-bottom-boundary'),
@@ -549,6 +551,12 @@ class CanvasWallpaperEditor {
         // Enter key on verse input
         this.controls.verseInput.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') this.fetchVerse();
+        });
+        
+        // Text editor real-time updates
+        this.controls.textEditor.addEventListener('input', () => {
+            this.currentVerse = this.controls.textEditor.value;
+            this.renderCanvas();
         });
         
         // Accordion toggle
@@ -636,6 +644,10 @@ class CanvasWallpaperEditor {
             const data = await response.json();
             this.currentVerse = data.text;
             this.currentReference = data.reference;
+            
+            // Populate text editor and show the section
+            this.controls.textEditor.value = data.text;
+            this.controls.textEditorSection.style.display = 'block';
             
             // Set the font size slider to the optimal font size from API
             if (data.optimal_font_size) {
@@ -976,6 +988,10 @@ class CanvasWallpaperEditor {
         // Clear verse data
         this.currentVerse = '';
         this.currentReference = '';
+        
+        // Clear and hide text editor
+        this.controls.textEditor.value = '';
+        this.controls.textEditorSection.style.display = 'none';
         
         // Re-render canvas
         this.renderCanvas();

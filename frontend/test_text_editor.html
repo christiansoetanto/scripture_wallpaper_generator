@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text Editor Integration Tests</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .test-result {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .test-pass {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .test-fail {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .test-info {
+            background: #d1ecf1;
+            color: #0c5460;
+            border: 1px solid #bee5eb;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        #test-canvas {
+            border: 1px solid #ccc;
+            margin: 10px 0;
+        }
+        #test-textarea {
+            width: 100%;
+            height: 100px;
+            margin: 10px 0;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Text Editor Integration Tests</h1>
+    
+    <div class="test-container">
+        <h2>Test Environment</h2>
+        <div id="test-results"></div>
+        <button onclick="runAllTests()">Run All Tests</button>
+        <button onclick="clearResults()">Clear Results</button>
+    </div>
+
+    <div class="test-container">
+        <h2>Test Components</h2>
+        <canvas id="test-canvas" width="400" height="200"></canvas>
+        <textarea id="test-textarea" placeholder="Test text editor..."></textarea>
+        <input type="text" id="test-verse-input" placeholder="Enter verse reference..." />
+        <button onclick="simulateFetch()">Simulate Fetch</button>
+    </div>
+
+    <script>
+        // Test results container
+        const resultsContainer = document.getElementById('test-results');
+        let testCount = 0;
+        let passCount = 0;
+        let failCount = 0;
+
+        // Test utilities
+        function logTest(name, passed, message = '') {
+            testCount++;
+            const result = document.createElement('div');
+            result.className = `test-result ${passed ? 'test-pass' : 'test-fail'}`;
+            result.innerHTML = `
+                <strong>Test ${testCount}: ${name}</strong><br>
+                Status: ${passed ? 'PASS' : 'FAIL'}<br>
+                ${message ? `Details: ${message}` : ''}
+            `;
+            resultsContainer.appendChild(result);
+            
+            if (passed) passCount++;
+            else failCount++;
+        }
+
+        function logInfo(message) {
+            const info = document.createElement('div');
+            info.className = 'test-result test-info';
+            info.innerHTML = `<strong>Info:</strong> ${message}`;
+            resultsContainer.appendChild(info);
+        }
+
+        function clearResults() {
+            resultsContainer.innerHTML = '';
+            testCount = 0;
+            passCount = 0;
+            failCount = 0;
+        }
+
+        // Mock the main application classes for testing
+        class MockCanvasWallpaperEditor {
+            constructor() {
+                this.currentVerse = '';
+                this.currentReference = '';
+                this.textEditor = document.getElementById('test-textarea');
+                this.canvas = document.getElementById('test-canvas');
+                this.ctx = this.canvas.getContext('2d');
+                this.isTextEditorVisible = false;
+                
+                this.initializeTextEditor();
+            }
+
+            initializeTextEditor() {
+                if (this.textEditor) {
+                    this.textEditor.addEventListener('input', () => {
+                        this.currentVerse = this.textEditor.value;
+                        this.renderCanvas();
+                    });
+                }
+            }
+
+            fetchVerse(verse, version = 'RSVCE') {
+                // Simulate API call
+                return new Promise((resolve) => {
+                    setTimeout(() => {
+                        const mockData = {
+                            text: `Mock verse text for ${verse} (${version})`,
+                            reference: verse,
+                            version: version
+                        };
+                        
+                        this.currentVerse = mockData.text;
+                        this.currentReference = mockData.reference;
+                        
+                        if (this.textEditor) {
+                            this.textEditor.value = this.currentVerse;
+                            this.showTextEditor();
+                        }
+                        
+                        this.renderCanvas();
+                        resolve(mockData);
+                    }, 100);
+                });
+            }
+
+            showTextEditor() {
+                this.isTextEditorVisible = true;
+                if (this.textEditor) {
+                    this.textEditor.style.display = 'block';
+                }
+            }
+
+            hideTextEditor() {
+                this.isTextEditorVisible = false;
+                if (this.textEditor) {
+                    this.textEditor.style.display = 'none';
+                    this.textEditor.value = '';
+                }
+            }
+
+            renderCanvas() {
+                if (!this.ctx) return;
+                
+                // Clear canvas
+                this.ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // Set background
+                this.ctx.fillStyle = '#000000';
+                this.ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+                
+                // Draw text if available
+                if (this.currentVerse) {
+                    this.ctx.fillStyle = '#ffffff';
+                    this.ctx.font = '16px Arial';
+                    this.ctx.textAlign = 'center';
+                    
+                    const lines = this.wrapText(this.currentVerse, this.canvas.width - 40);
+                    const lineHeight = 20;
+                    const startY = (this.canvas.height - (lines.length * lineHeight)) / 2;
+                    
+                    lines.forEach((line, index) => {
+                        this.ctx.fillText(line, this.canvas.width / 2, startY + (index * lineHeight));
+                    });
+                }
+            }
+
+            wrapText(text, maxWidth) {
+                const words = text.split(' ');
+                const lines = [];
+                let currentLine = '';
+                
+                for (const word of words) {
+                    const testLine = currentLine + (currentLine ? ' ' : '') + word;
+                    const metrics = this.ctx.measureText(testLine);
+                    
+                    if (metrics.width > maxWidth && currentLine) {
+                        lines.push(currentLine);
+                        currentLine = word;
+                    } else {
+                        currentLine = testLine;
+                    }
+                }
+                
+                if (currentLine) {
+                    lines.push(currentLine);
+                }
+                
+                return lines;
+            }
+
+            resetCanvas() {
+                this.currentVerse = '';
+                this.currentReference = '';
+                this.hideTextEditor();
+                this.renderCanvas();
+            }
+        }
+
+        // Initialize mock editor
+        let mockEditor;
+
+        // Test functions
+        async function testTextEditorInitialization() {
+            try {
+                mockEditor = new MockCanvasWallpaperEditor();
+                const hasTextEditor = mockEditor.textEditor !== null;
+                const hasCanvas = mockEditor.canvas !== null;
+                
+                logTest('Text Editor Initialization', 
+                    hasTextEditor && hasCanvas,
+                    `Text Editor: ${hasTextEditor}, Canvas: ${hasCanvas}`
+                );
+            } catch (error) {
+                logTest('Text Editor Initialization', false, error.message);
+            }
+        }
+
+        async function testVerseFetching() {
+            try {
+                const testVerse = 'John 3:16';
+                const result = await mockEditor.fetchVerse(testVerse);
+                
+                const hasText = result.text && result.text.length > 0;
+                const hasReference = result.reference === testVerse;
+                const editorPopulated = mockEditor.textEditor.value.length > 0;
+                const editorVisible = mockEditor.isTextEditorVisible;
+                
+                logTest('Verse Fetching and Editor Population',
+                    hasText && hasReference && editorPopulated && editorVisible,
+                    `Text: ${hasText}, Reference: ${hasReference}, Populated: ${editorPopulated}, Visible: ${editorVisible}`
+                );
+            } catch (error) {
+                logTest('Verse Fetching and Editor Population', false, error.message);
+            }
+        }
+
+        async function testRealTimeEditing() {
+            try {
+                // Get initial canvas state
+                const initialImageData = mockEditor.ctx.getImageData(0, 0, mockEditor.canvas.width, mockEditor.canvas.height);
+                
+                // Edit text
+                const newText = 'This is edited text for testing real-time updates.';
+                mockEditor.textEditor.value = newText;
+                
+                // Trigger input event
+                const inputEvent = new Event('input', { bubbles: true });
+                mockEditor.textEditor.dispatchEvent(inputEvent);
+                
+                // Wait for render
+                await new Promise(resolve => setTimeout(resolve, 50));
+                
+                // Get updated canvas state
+                const updatedImageData = mockEditor.ctx.getImageData(0, 0, mockEditor.canvas.width, mockEditor.canvas.height);
+                
+                // Compare canvas states
+                let hasChanged = false;
+                for (let i = 0; i < initialImageData.data.length; i++) {
+                    if (initialImageData.data[i] !== updatedImageData.data[i]) {
+                        hasChanged = true;
+                        break;
+                    }
+                }
+                
+                const currentVerseUpdated = mockEditor.currentVerse === newText;
+                
+                logTest('Real-time Text Editing',
+                    hasChanged && currentVerseUpdated,
+                    `Canvas Changed: ${hasChanged}, Current Verse Updated: ${currentVerseUpdated}`
+                );
+            } catch (error) {
+                logTest('Real-time Text Editing', false, error.message);
+            }
+        }
+
+        async function testCanvasReset() {
+            try {
+                // Ensure editor is visible first
+                await mockEditor.fetchVerse('Test 1:1');
+                
+                const editorVisibleBefore = mockEditor.isTextEditorVisible;
+                const hasTextBefore = mockEditor.textEditor.value.length > 0;
+                
+                // Reset canvas
+                mockEditor.resetCanvas();
+                
+                const editorVisibleAfter = mockEditor.isTextEditorVisible;
+                const hasTextAfter = mockEditor.textEditor.value.length > 0;
+                const currentVerseCleared = mockEditor.currentVerse === '';
+                
+                logTest('Canvas Reset Functionality',
+                    editorVisibleBefore && !editorVisibleAfter && hasTextBefore && !hasTextAfter && currentVerseCleared,
+                    `Before: Visible=${editorVisibleBefore}, Text=${hasTextBefore}; After: Visible=${editorVisibleAfter}, Text=${hasTextAfter}, Cleared=${currentVerseCleared}`
+                );
+            } catch (error) {
+                logTest('Canvas Reset Functionality', false, error.message);
+            }
+        }
+
+        async function testTextFormatting() {
+            try {
+                const multilineText = 'Line 1\nLine 2\nLine 3';
+                mockEditor.textEditor.value = multilineText;
+                
+                // Trigger input event
+                const inputEvent = new Event('input', { bubbles: true });
+                mockEditor.textEditor.dispatchEvent(inputEvent);
+                
+                const preservedText = mockEditor.currentVerse;
+                const hasNewlines = preservedText.includes('\n');
+                const hasAllLines = preservedText.includes('Line 1') && 
+                                  preservedText.includes('Line 2') && 
+                                  preservedText.includes('Line 3');
+                
+                logTest('Text Formatting Preservation',
+                    hasNewlines && hasAllLines,
+                    `Newlines preserved: ${hasNewlines}, All lines present: ${hasAllLines}`
+                );
+            } catch (error) {
+                logTest('Text Formatting Preservation', false, error.message);
+            }
+        }
+
+        async function testMultipleVersions() {
+            try {
+                const versions = ['RSVCE', 'ESV', 'NABRE'];
+                let allVersionsWork = true;
+                let versionResults = [];
+                
+                for (const version of versions) {
+                    const result = await mockEditor.fetchVerse('John 3:16', version);
+                    const versionWorks = result.version === version && result.text.includes(version);
+                    versionResults.push(`${version}: ${versionWorks}`);
+                    
+                    if (!versionWorks) {
+                        allVersionsWork = false;
+                    }
+                    
+                    // Reset between tests
+                    mockEditor.resetCanvas();
+                    await new Promise(resolve => setTimeout(resolve, 50));
+                }
+                
+                logTest('Multiple Bible Versions',
+                    allVersionsWork,
+                    versionResults.join(', ')
+                );
+            } catch (error) {
+                logTest('Multiple Bible Versions', false, error.message);
+            }
+        }
+
+        // Main test runner
+        async function runAllTests() {
+            clearResults();
+            logInfo('Starting Text Editor Integration Tests...');
+            
+            await testTextEditorInitialization();
+            await testVerseFetching();
+            await testRealTimeEditing();
+            await testCanvasReset();
+            await testTextFormatting();
+            await testMultipleVersions();
+            
+            logInfo(`Tests completed: ${passCount} passed, ${failCount} failed out of ${testCount} total tests.`);
+        }
+
+        // Manual test function
+        function simulateFetch() {
+            const verseInput = document.getElementById('test-verse-input');
+            const verse = verseInput.value || 'John 3:16';
+            
+            if (mockEditor) {
+                mockEditor.fetchVerse(verse);
+                logInfo(`Simulated fetch for: ${verse}`);
+            }
+        }
+
+        // Initialize on page load
+        window.addEventListener('load', () => {
+            logInfo('Text Editor Integration Test Environment Ready');
+            logInfo('Click "Run All Tests" to execute automated tests, or use the manual controls below.');
+        });
+    </script>
+</body>
+</html>

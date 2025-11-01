@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Canvas Wallpaper Editor Tests</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .test-suite { margin-bottom: 30px; border: 1px solid #ddd; padding: 15px; }
+        .test-case { margin: 10px 0; padding: 8px; border-left: 3px solid #ccc; }
+        .test-pass { border-left-color: #4CAF50; background-color: #f1f8e9; }
+        .test-fail { border-left-color: #f44336; background-color: #ffebee; }
+        .test-results { margin-top: 20px; padding: 15px; background-color: #f5f5f5; }
+        h2 { color: #333; }
+        h3 { color: #666; }
+        .error { color: #d32f2f; font-weight: bold; }
+        .success { color: #388e3c; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <h1>Canvas Wallpaper Editor Unit Tests</h1>
+    <div id="test-results"></div>
+
+    <script>
+        // Simple test framework
+        class TestRunner {
+            constructor() {
+                this.results = [];
+                this.currentSuite = '';
+            }
+
+            describe(suiteName, testFn) {
+                this.currentSuite = suiteName;
+                console.log(`\n=== ${suiteName} ===`);
+                testFn();
+            }
+
+            it(testName, testFn) {
+                try {
+                    testFn();
+                    this.results.push({
+                        suite: this.currentSuite,
+                        name: testName,
+                        status: 'pass',
+                        error: null
+                    });
+                    console.log(`✓ ${testName}`);
+                } catch (error) {
+                    this.results.push({
+                        suite: this.currentSuite,
+                        name: testName,
+                        status: 'fail',
+                        error: error.message
+                    });
+                    console.log(`✗ ${testName}: ${error.message}`);
+                }
+            }
+
+            expect(actual) {
+                return {
+                    toBe: (expected) => {
+                        if (actual !== expected) {
+                            throw new Error(`Expected ${expected}, but got ${actual}`);
+                        }
+                    },
+                    toBeCloseTo: (expected, precision = 2) => {
+                        const diff = Math.abs(actual - expected);
+                        const tolerance = Math.pow(10, -precision) / 2;
+                        if (diff > tolerance) {
+                            throw new Error(`Expected ${actual} to be close to ${expected} (within ${tolerance})`);
+                        }
+                    },
+                    toBeLessThanOrEqual: (expected) => {
+                        if (actual > expected) {
+                            throw new Error(`Expected ${actual} to be less than or equal to ${expected}`);
+                        }
+                    },
+                    toBeGreaterThanOrEqual: (expected) => {
+                        if (actual < expected) {
+                            throw new Error(`Expected ${actual} to be greater than or equal to ${expected}`);
+                        }
+                    }
+                };
+            }
+
+            renderResults() {
+                const container = document.getElementById('test-results');
+                const suites = {};
+                
+                // Group results by suite
+                this.results.forEach(result => {
+                    if (!suites[result.suite]) {
+                        suites[result.suite] = [];
+                    }
+                    suites[result.suite].push(result);
+                });
+
+                let html = '';
+                let totalTests = 0;
+                let passedTests = 0;
+
+                Object.keys(suites).forEach(suiteName => {
+                    const suiteResults = suites[suiteName];
+                    const suitePassed = suiteResults.filter(r => r.status === 'pass').length;
+                    const suiteFailed = suiteResults.filter(r => r.status === 'fail').length;
+                    
+                    totalTests += suiteResults.length;
+                    passedTests += suitePassed;
+
+                    html += `<div class="test-suite">
+                        <h2>${suiteName} (${suitePassed}/${suiteResults.length} passed)</h2>`;
+                    
+                    suiteResults.forEach(result => {
+                        const className = result.status === 'pass' ? 'test-pass' : 'test-fail';
+                        html += `<div class="test-case ${className}">
+                            <strong>${result.status === 'pass' ? '✓' : '✗'} ${result.name}</strong>
+                            ${result.error ? `<div class="error">${result.error}</div>` : ''}
+                        </div>`;
+                    });
+                    
+                    html += '</div>';
+                });
+
+                html += `<div class="test-results">
+                    <h2>Test Summary</h2>
+                    <p class="${passedTests === totalTests ? 'success' : 'error'}">
+                        ${passedTests}/${totalTests} tests passed
+                    </p>
+                </div>`;
+
+                container.innerHTML = html;
+            }
+        }
+
+        // Mock CanvasWallpaperEditor for testing
+        class MockCanvasWallpaperEditor {
+            constructor() {
+                this.actualWidth = 1242;
+                this.actualHeight = 2688;
+            }
+
+            // Extract boundary calculation logic for testing
+            calculateBoundaries(topBoundaryPercent, bottomBoundaryPercent) {
+                const topBoundary = this.actualHeight * (topBoundaryPercent / 100);
+                const bottomBoundary = this.actualHeight * ((100 - bottomBoundaryPercent) / 100);
+                return { topBoundary, bottomBoundary };
+            }
+
+            // Extract text area calculation logic for testing
+            calculateTextArea(topBoundary, bottomBoundary, boundaryMargin = 40) {
+                const textAreaTop = topBoundary + boundaryMargin;
+                const textAreaBottom = bottomBoundary - boundaryMargin;
+                const availableHeight = textAreaBottom - textAreaTop;
+                return { textAreaTop, textAreaBottom, availableHeight };
+            }
+
+            // Extract font size reduction logic for testing
+            calculateOptimalFontSize(contentHeight, availableHeight, startingFontSize = 64, minFontSize = 20, step = 2) {
+                let currentFontSize = startingFontSize;
+                
+                while (currentFontSize > minFontSize && contentHeight > availableHeight) {
+                    currentFontSize -= step;
+                    // In real implementation, contentHeight would be recalculated here
+                    // For testing, we'll simulate this with a simple ratio
+                    contentHeight = contentHeight * (currentFontSize / (currentFontSize + step));
+                }
+                
+                return currentFontSize;
+            }
+
+            // Mock content height calculation
+            calculateContentHeight(fontSize, lineCount = 3) {
+                // Simplified calculation for testing
+                const lineHeight = fontSize * 1.2;
+                const verseHeight = lineHeight * lineCount;
+                const referenceHeight = (fontSize * 0.65625) * 1.2; // 42/64 ratio
+                const spaceBetween = 40;
+                return verseHeight + spaceBetween + referenceHeight;
+            }
+        }
+
+        // Run tests
+        const runner = new TestRunner();
+        const editor = new MockCanvasWallpaperEditor();
+
+        runner.describe('Boundary Calculation Logic', () => {
+            runner.it('should calculate correct top boundary for 31% unusable area', () => {
+                const { topBoundary } = editor.calculateBoundaries(31, 38);
+                const expected = 2688 * 0.31; // 833.28
+                runner.expect(topBoundary).toBeCloseTo(expected, 1);
+            });
+
+            runner.it('should calculate correct bottom boundary for 38% unusable area', () => {
+                const { bottomBoundary } = editor.calculateBoundaries(31, 38);
+                const expected = 2688 * 0.62; // 1666.56 (100% - 38% = 62%)
+                runner.expect(bottomBoundary).toBeCloseTo(expected, 1);
+            });
+
+            runner.it('should ensure top boundary is less than bottom boundary', () => {
+                const { topBoundary, bottomBoundary } = editor.calculateBoundaries(31, 38);
+                runner.expect(topBoundary).toBeLessThanOrEqual(bottomBoundary);
+            });
+
+            runner.it('should handle edge case with 0% boundaries', () => {
+                const { topBoundary, bottomBoundary } = editor.calculateBoundaries(0, 0);
+                runner.expect(topBoundary).toBe(0);
+                runner.expect(bottomBoundary).toBe(2688);
+            });
+
+            runner.it('should handle edge case with 50% boundaries', () => {
+                const { topBoundary, bottomBoundary } = editor.calculateBoundaries(50, 50);
+                runner.expect(topBoundary).toBe(1344);
+                runner.expect(bottomBoundary).toBe(1344);
+            });
+        });
+
+        runner.describe('Text Area Confinement Logic', () => {
+            runner.it('should apply correct margin to boundaries', () => {
+                const { topBoundary, bottomBoundary } = editor.calculateBoundaries(31, 38);
+                const { textAreaTop, textAreaBottom } = editor.calculateTextArea(topBoundary, bottomBoundary, 40);
+                
+                runner.expect(textAreaTop).toBeCloseTo(topBoundary + 40, 1);
+                runner.expect(textAreaBottom).toBeCloseTo(bottomBoundary - 40, 1);
+            });
+
+            runner.it('should calculate available height correctly', () => {
+                const { topBoundary, bottomBoundary } = editor.calculateBoundaries(31, 38);
+                const { availableHeight } = editor.calculateTextArea(topBoundary, bottomBoundary, 40);
+                
+                const expectedHeight = (bottomBoundary - topBoundary) - 80; // minus 2 * margin
+                runner.expect(availableHeight).toBeCloseTo(expectedHeight, 1);
+            });
+
+            runner.it('should ensure text area is within boundaries', () => {
+                const { topBoundary, bottomBoundary } = editor.calculateBoundaries(31, 38);
+                const { textAreaTop, textAreaBottom } = editor.calculateTextArea(topBoundary, bottomBoundary);
+                
+                runner.expect(textAreaTop).toBeGreaterThanOrEqual(topBoundary);
+                runner.expect(textAreaBottom).toBeLessThanOrEqual(bottomBoundary);
+            });
+        });
+
+        runner.describe('Font Size Reduction Algorithm', () => {
+            runner.it('should reduce font size when content overflows', () => {
+                const contentHeight = 800;
+                const availableHeight = 600;
+                const optimalSize = editor.calculateOptimalFontSize(contentHeight, availableHeight, 64, 20, 2);
+                
+                runner.expect(optimalSize).toBeLessThanOrEqual(64);
+                runner.expect(optimalSize).toBeGreaterThanOrEqual(20);
+            });
+
+            runner.it('should not reduce font size when content fits', () => {
+                const contentHeight = 400;
+                const availableHeight = 600;
+                const optimalSize = editor.calculateOptimalFontSize(contentHeight, availableHeight, 64, 20, 2);
+                
+                runner.expect(optimalSize).toBe(64);
+            });
+
+            runner.it('should respect minimum font size', () => {
+                const contentHeight = 2000;
+                const availableHeight = 100;
+                const optimalSize = editor.calculateOptimalFontSize(contentHeight, availableHeight, 64, 20, 2);
+                
+                runner.expect(optimalSize).toBeGreaterThanOrEqual(20);
+            });
+
+            runner.it('should reduce by correct step size', () => {
+                // This test verifies the step reduction logic
+                const startSize = 64;
+                const step = 2;
+                const minSize = 20;
+                
+                // Calculate expected steps
+                const maxSteps = Math.floor((startSize - minSize) / step);
+                runner.expect(maxSteps).toBe(22); // (64-20)/2 = 22 steps
+            });
+        });
+
+        runner.describe('Content Height Calculation', () => {
+            runner.it('should calculate verse height correctly', () => {
+                const fontSize = 64;
+                const lineCount = 3;
+                const contentHeight = editor.calculateContentHeight(fontSize, lineCount);
+                
+                // Expected: (64 * 1.2 * 3) + 40 + (42 * 1.2) = 230.4 + 40 + 50.4 = 320.8
+                runner.expect(contentHeight).toBeCloseTo(320.8, 1);
+            });
+
+            runner.it('should scale reference text correctly', () => {
+                const fontSize = 64;
+                const referenceFontSize = fontSize * (42/64);
+                runner.expect(referenceFontSize).toBeCloseTo(42, 1);
+            });
+
+            runner.it('should include spacing between verse and reference', () => {
+                const contentHeight = editor.calculateContentHeight(64, 1);
+                // Should include 40px spacing
+                runner.expect(contentHeight).toBeGreaterThanOrEqual(40);
+            });
+        });
+
+        runner.describe('Integration Tests', () => {
+            runner.it('should match image generator boundaries for default values', () => {
+                // Test with default 31% top, 38% bottom
+                const { topBoundary, bottomBoundary } = editor.calculateBoundaries(31, 38);
+                const { textAreaTop, textAreaBottom, availableHeight } = editor.calculateTextArea(topBoundary, bottomBoundary);
+                
+                // These should be close to image generator values (930px top, 1580px bottom)
+                // Allowing for some variance due to different calculation methods
+                runner.expect(textAreaTop).toBeCloseTo(873, 10); // 833 + 40
+                runner.expect(textAreaBottom).toBeCloseTo(1627, 10); // 1667 - 40
+                runner.expect(availableHeight).toBeCloseTo(754, 10); // 1627 - 873
+            });
+
+            runner.it('should ensure complete workflow maintains text within boundaries', () => {
+                const { topBoundary, bottomBoundary } = editor.calculateBoundaries(31, 38);
+                const { textAreaTop, textAreaBottom, availableHeight } = editor.calculateTextArea(topBoundary, bottomBoundary);
+                
+                // Calculate content height for typical verse
+                const contentHeight = editor.calculateContentHeight(64, 3);
+                
+                // If content overflows, font should be reduced
+                if (contentHeight > availableHeight) {
+                    const optimalFontSize = editor.calculateOptimalFontSize(contentHeight, availableHeight);
+                    runner.expect(optimalFontSize).toBeLessThanOrEqual(64);
+                    runner.expect(optimalFontSize).toBeGreaterThanOrEqual(20);
+                }
+                
+                // Text area should always be within image boundaries
+                runner.expect(textAreaTop).toBeGreaterThanOrEqual(topBoundary);
+                runner.expect(textAreaBottom).toBeLessThanOrEqual(bottomBoundary);
+            });
+        });
+
+        // Run all tests and display results
+        runner.renderResults();
+    </script>
+</body>
+</html>

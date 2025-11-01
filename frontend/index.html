@@ -13,7 +13,6 @@
     <div class="container">
         <header>
             <h1>Scripture Wallpaper Generator</h1>
-            <p>Create beautiful wallpapers from Bible verses</p>
         </header>
 
         <main>
@@ -28,7 +27,16 @@
                 <!-- Canvas-based Wallpaper Editor -->
                 <div class="canvas-editor-section">
                     <div class="editor-container">
-                        <!-- Form Controls at Top -->
+                        <!-- Live Preview at Top -->
+                        <div class="canvas-preview-container" id="canvas-preview-container" style="display: none;">
+                            <div class="canvas-container">
+                                <h3>Live Preview</h3>
+                                <canvas id="wallpaper-canvas" width="1080" height="2340"></canvas>
+                                <p class="canvas-info">Canvas: 1080x2340 (100% scale)</p>
+                            </div>
+                        </div>
+
+                        <!-- Form Controls -->
                         <div class="editor-controls">
                             <h2>Text Controls</h2>
                             
@@ -36,9 +44,17 @@
                                 <label for="canvas-verse-input">Bible Reference:</label>
                                 <div class="input-button-group">
                                     <input type="text" id="canvas-verse-input" placeholder="e.g., John 3:16" class="form-input">
-                                    <button type="button" id="fetch-verse-btn" class="btn btn-secondary">Fetch and Preview</button>
-                                    <button type="button" id="paste-verse-btn" class="btn btn-secondary">Paste</button>
-                                    <button type="button" id="fetch-download-btn" class="btn btn-primary">Fetch and Download</button>
+                                    <div class="button-row">
+                                        <button type="button" id="paste-verse-btn" class="btn icon-btn" title="Paste from clipboard">
+                                            📋
+                                        </button>
+                                        <button type="button" id="fetch-verse-btn" class="btn icon-btn" title="Preview verse">
+                                            👁️
+                                        </button>
+                                        <button type="button" id="fetch-download-btn" class="btn icon-btn" title="Download wallpaper">
+                                            ⬇️
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
 
@@ -54,46 +70,45 @@
                                 </select>
                             </div>
 
-                            <div class="control-group">
-                                <label for="canvas-top-boundary">Top Boundary (%):</label>
-                                <input type="range" id="canvas-top-boundary" min="0" max="50" step="0.1" value="38" class="slider">
-                                <span id="canvas-top-boundary-value">38%</span>
+                            <div class="accordion">
+                                <button class="accordion-header" type="button" id="advanced-settings-toggle">
+                                    <span>Advanced Settings</span>
+                                    <span class="accordion-icon">▼</span>
+                                </button>
+                                <div class="accordion-content" id="advanced-settings-content">
+                                    <div class="control-group">
+                                        <label for="canvas-top-boundary">Top Boundary (%):</label>
+                                        <input type="range" id="canvas-top-boundary" min="0" max="50" step="0.1" value="38" class="slider">
+                                        <span id="canvas-top-boundary-value">38%</span>
+                                    </div>
+
+                                    <div class="control-group">
+                                        <label for="canvas-bottom-boundary">Bottom Boundary (%):</label>
+                                        <input type="range" id="canvas-bottom-boundary" min="0" max="50" step="0.1" value="31" class="slider">
+                                        <span id="canvas-bottom-boundary-value">31%</span>
+                                    </div>
+
+                                    <div class="control-group">
+                                        <label for="canvas-font-size">Font Size:</label>
+                                        <input type="range" id="canvas-font-size" min="30" max="100" value="64" class="slider">
+                                        <span id="canvas-font-size-value">64px</span>
+                                    </div>
+
+                                    <div class="control-group">
+                                        <label for="canvas-line-spacing">Line Spacing:</label>
+                                        <input type="range" id="canvas-line-spacing" min="1.0" max="2.5" step="0.1" value="1.4" class="slider">
+                                        <span id="canvas-line-spacing-value">1.4</span>
+                                    </div>
+                                </div>
                             </div>
 
                             <div class="control-group">
-                                <label for="canvas-bottom-boundary">Bottom Boundary (%):</label>
-                                <input type="range" id="canvas-bottom-boundary" min="0" max="50" step="0.1" value="31" class="slider">
-                                <span id="canvas-bottom-boundary-value">31%</span>
-                            </div>
-
-                            <div class="control-group">
-                                <label for="canvas-font-size">Font Size:</label>
-                                <input type="range" id="canvas-font-size" min="30" max="100" value="64" class="slider">
-                                <span id="canvas-font-size-value">64px</span>
-                            </div>
-
-                            <div class="control-group">
-                                <label for="canvas-line-spacing">Line Spacing:</label>
-                                <input type="range" id="canvas-line-spacing" min="1.0" max="2.5" step="0.1" value="1.4" class="slider">
-                                <span id="canvas-line-spacing-value">1.4</span>
-                            </div>
-
-                            <div class="control-group">
-                                <button type="button" id="download-canvas-btn" class="btn btn-primary">
-                                    Download Wallpaper
+                                <button type="button" id="download-canvas-btn" class="btn btn-primary" title="Download Wallpaper">
+                                    📥
                                 </button>
                                 <button type="button" id="reset-canvas-btn" class="btn btn-secondary">
                                     Reset
                                 </button>
-                            </div>
-                        </div>
-
-                        <!-- Live Preview -->
-                        <div class="canvas-preview-container">
-                            <div class="canvas-container">
-                                <h3>Live Preview</h3>
-                                <canvas id="wallpaper-canvas" width="1080" height="2340"></canvas>
-                                <p class="canvas-info">Canvas: 1080x2340 (100% scale)</p>
                             </div>
                         </div>
                     </div>

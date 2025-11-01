@@ -17,7 +17,92 @@
         </header>
 
         <main>
-            <form id="wallpaper-form" class="form-container">
+            <!-- Tab Navigation -->
+            <div class="tab-navigation">
+                <button class="tab-button active" data-tab="canvas-tab">Canvas Editor</button>
+                <button class="tab-button" data-tab="form-tab">Form Generator</button>
+            </div>
+
+            <!-- Canvas Editor Tab (Default) -->
+            <div id="canvas-tab" class="tab-content active">
+                <!-- Canvas-based Wallpaper Editor -->
+                <div class="canvas-editor-section">
+                    <div class="editor-container">
+                        <!-- Form Controls at Top -->
+                        <div class="editor-controls">
+                            <h2>Text Controls</h2>
+                            
+                            <div class="control-group">
+                                <label for="canvas-verse-input">Bible Reference:</label>
+                                <div class="input-button-group">
+                                    <input type="text" id="canvas-verse-input" placeholder="e.g., John 3:16" class="form-input">
+                                    <button type="button" id="fetch-verse-btn" class="btn btn-secondary">Fetch and Preview</button>
+                                    <button type="button" id="paste-verse-btn" class="btn btn-secondary">Paste</button>
+                                    <button type="button" id="fetch-download-btn" class="btn btn-primary">Fetch and Download</button>
+                                </div>
+                            </div>
+
+                            <div class="control-group">
+                                <label for="canvas-version-select">Bible Version:</label>
+                                <select id="canvas-version-select" class="form-input">
+                                    <option value="RSVCE" selected>RSVCE - Revised Standard Version Catholic Edition</option>
+                                    <option value="NABRE">NABRE - New American Bible Revised Edition</option>
+                                    <option value="ESV">ESV - English Standard Version</option>
+                                    <option value="NRSVCE">NRSVCE - New Revised Standard Version Catholic Edition</option>
+                                    <option value="DRA">DRA - Douay-Rheims Bible</option>
+                                    <option value="VULGATE">VULGATE - Latin Vulgate</option>
+                                </select>
+                            </div>
+
+                            <div class="control-group">
+                                <label for="canvas-top-boundary">Top Boundary (%):</label>
+                                <input type="range" id="canvas-top-boundary" min="0" max="50" step="0.1" value="38" class="slider">
+                                <span id="canvas-top-boundary-value">38%</span>
+                            </div>
+
+                            <div class="control-group">
+                                <label for="canvas-bottom-boundary">Bottom Boundary (%):</label>
+                                <input type="range" id="canvas-bottom-boundary" min="0" max="50" step="0.1" value="31" class="slider">
+                                <span id="canvas-bottom-boundary-value">31%</span>
+                            </div>
+
+                            <div class="control-group">
+                                <label for="canvas-font-size">Font Size:</label>
+                                <input type="range" id="canvas-font-size" min="30" max="100" value="64" class="slider">
+                                <span id="canvas-font-size-value">64px</span>
+                            </div>
+
+                            <div class="control-group">
+                                <label for="canvas-line-spacing">Line Spacing:</label>
+                                <input type="range" id="canvas-line-spacing" min="1.0" max="2.5" step="0.1" value="1.4" class="slider">
+                                <span id="canvas-line-spacing-value">1.4</span>
+                            </div>
+
+                            <div class="control-group">
+                                <button type="button" id="download-canvas-btn" class="btn btn-primary">
+                                    Download Wallpaper
+                                </button>
+                                <button type="button" id="reset-canvas-btn" class="btn btn-secondary">
+                                    Reset
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Live Preview -->
+                        <div class="canvas-preview-container">
+                            <div class="canvas-container">
+                                <h3>Live Preview</h3>
+                                <canvas id="wallpaper-canvas" width="1080" height="2340"></canvas>
+                                <p class="canvas-info">Canvas: 1080x2340 (100% scale)</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Form Generator Tab -->
+            <div id="form-tab" class="tab-content">
+                <form id="wallpaper-form" class="form-container">
                 <div class="input-group">
                     <label for="verse-input">Bible Reference</label>
                     <div class="input-with-button">
@@ -99,22 +184,52 @@
                         Download
                     </button>
                 </div>
-            </form>
+                </form>
 
-            <div id="loading" class="loading hidden">
-                <div class="spinner"></div>
-                <p>Generating wallpaper...</p>
-            </div>
+                <div id="loading" class="loading hidden">
+                    <div class="spinner"></div>
+                    <p>Generating wallpaper...</p>
+                </div>
 
-            <div id="error" class="error hidden">
-                <div class="error-icon">⚠️</div>
-                <div class="error-content">
-                    <h3>Error</h3>
-                    <p id="error-message"></p>
+                <div id="error" class="error hidden">
+                    <div class="error-icon">⚠️</div>
+                    <div class="error-content">
+                        <h3>Error</h3>
+                        <p id="error-message"></p>
+                    </div>
+                </div>
+
+                <div class="preview-section">
+                    <h2>Preview</h2>
+                    <div class="preview-container">
+                        <div class="preview-side-by-side">
+                            <div class="canvas-preview">
+                                <h3>Boundary Reference</h3>
+                                <canvas id="preview-canvas" width="400" height="800"></canvas>
+                                <div class="preview-info">
+                                    <p>Text area: <span id="text-area-info">38% from top, 31% from bottom</span></p>
+                                </div>
+                            </div>
+                            <div class="generated-preview">
+                                <h3>Generated Wallpaper</h3>
+                                <div id="preview-container" class="api-preview-container hidden">
+                                    <div class="image-wrapper">
+                                        <img id="preview-image" alt="Scripture wallpaper preview">
+                                    </div>
+                                    <div class="preview-actions">
+                                        <button type="button" id="download-preview-btn" class="btn btn-primary">
+                                            Download Wallpaper
+                                        </button>
+                                    </div>
+                                </div>
+                                <div class="preview-placeholder">
+                                    <p>Click "Preview" button to generate wallpaper</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
-
-
         </main>
 
         <footer>
@@ -123,108 +238,6 @@
                 • Font: <a href="https://fonts.google.com/specimen/Montserrat" target="_blank" rel="noopener">Montserrat</a>
             </p>
         </footer>
-    </div>
-    
-    <div class="preview-section">
-        <h2>Preview</h2>
-        <div class="preview-container">
-            <div class="preview-side-by-side">
-                <div class="canvas-preview">
-                    <h3>Boundary Reference</h3>
-                    <canvas id="preview-canvas" width="400" height="800"></canvas>
-                    <div class="preview-info">
-                        <p>Text area: <span id="text-area-info">38% from top, 31% from bottom</span></p>
-                    </div>
-                </div>
-                <div class="generated-preview">
-                    <h3>Generated Wallpaper</h3>
-                    <div id="preview-container" class="api-preview-container hidden">
-                        <div class="image-wrapper">
-                            <img id="preview-image" alt="Scripture wallpaper preview">
-                        </div>
-                        <div class="preview-actions">
-                            <button type="button" id="download-preview-btn" class="btn btn-primary">
-                                Download Wallpaper
-                            </button>
-                        </div>
-                    </div>
-                    <div class="preview-placeholder">
-                        <p>Click "Preview" button to generate wallpaper</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Canvas-based Wallpaper Editor -->
-    <div class="canvas-editor-section">
-        <h2>Canvas Editor</h2>
-        <div class="editor-container">
-            <div class="editor-controls">
-                <h3>Text Controls</h3>
-                
-                <div class="control-group">
-                    <label for="canvas-verse-input">Bible Reference:</label>
-                    <input type="text" id="canvas-verse-input" placeholder="e.g., John 3:16" class="form-input">
-                    <button type="button" id="fetch-verse-btn" class="btn btn-secondary">Fetch Verse</button>
-                </div>
-
-                <div class="control-group">
-                    <label for="canvas-version-select">Bible Version:</label>
-                    <select id="canvas-version-select" class="form-input">
-                        <option value="RSVCE" selected>RSVCE - Revised Standard Version Catholic Edition</option>
-                        <option value="NABRE">NABRE - New American Bible Revised Edition</option>
-                        <option value="ESV">ESV - English Standard Version</option>
-                        <option value="NRSVCE">NRSVCE - New Revised Standard Version Catholic Edition</option>
-                        <option value="DRA">DRA - Douay-Rheims Bible</option>
-                        <option value="VULGATE">VULGATE - Latin Vulgate</option>
-                    </select>
-                </div>
-
-                <div class="control-group">
-                    <label for="canvas-top-boundary">Top Boundary (%):</label>
-                    <input type="range" id="canvas-top-boundary" min="0" max="50" step="0.1" value="38" class="slider">
-                    <span id="canvas-top-boundary-value">38%</span>
-                </div>
-
-                <div class="control-group">
-                    <label for="canvas-bottom-boundary">Bottom Boundary (%):</label>
-                    <input type="range" id="canvas-bottom-boundary" min="0" max="50" step="0.1" value="31" class="slider">
-                    <span id="canvas-bottom-boundary-value">31%</span>
-                </div>
-
-                <div class="control-group">
-                    <label for="canvas-font-size">Font Size:</label>
-                    <input type="range" id="canvas-font-size" min="30" max="100" value="64" class="slider">
-                    <span id="canvas-font-size-value">64px</span>
-                </div>
-
-                <div class="control-group">
-                    <label for="canvas-line-spacing">Line Spacing:</label>
-                    <input type="range" id="canvas-line-spacing" min="1.0" max="2.5" step="0.1" value="1.4" class="slider">
-                    <span id="canvas-line-spacing-value">1.4</span>
-                </div>
-
-
-
-
-
-                <div class="control-group">
-                    <button type="button" id="download-canvas-btn" class="btn btn-primary">
-                        Download Wallpaper
-                    </button>
-                    <button type="button" id="reset-canvas-btn" class="btn btn-secondary">
-                        Reset
-                    </button>
-                </div>
-            </div>
-
-            <div class="canvas-container">
-                <h3>Live Preview</h3>
-                <canvas id="wallpaper-canvas" width="1080" height="2340"></canvas>
-                <p class="canvas-info">Canvas: 1080x2340 (100% scale)</p>
-            </div>
-        </div>
     </div>
 
     <script src="main.js"></script>

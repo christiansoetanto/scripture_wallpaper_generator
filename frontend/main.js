@@ -1,6 +1,40 @@
 // Scripture Wallpaper Generator - Frontend JavaScript
 // Handles user interactions, API calls, and image preview/download
 
+// Tab Management
+class TabManager {
+    constructor() {
+        this.initializeTabs();
+    }
+
+    initializeTabs() {
+        const tabButtons = document.querySelectorAll('.tab-button');
+        const tabContents = document.querySelectorAll('.tab-content');
+
+        tabButtons.forEach(button => {
+            button.addEventListener('click', () => {
+                const targetTab = button.getAttribute('data-tab');
+                
+                // Remove active class from all buttons and contents
+                tabButtons.forEach(btn => btn.classList.remove('active'));
+                tabContents.forEach(content => content.classList.remove('active'));
+                
+                // Add active class to clicked button and corresponding content
+                button.classList.add('active');
+                document.getElementById(targetTab).classList.add('active');
+            });
+        });
+
+        // Set default active tab (Canvas Editor)
+        const defaultButton = document.querySelector('.tab-button[data-tab="canvas-tab"]');
+        const defaultContent = document.getElementById('canvas-tab');
+        if (defaultButton && defaultContent) {
+            defaultButton.classList.add('active');
+            defaultContent.classList.add('active');
+        }
+    }
+}
+
 class ScriptureWallpaperGenerator {
     constructor() {
         this.apiBaseUrl = 'http://localhost:8000';
@@ -443,6 +477,7 @@ In all that he does, he prospers.`;
 
 // Initialize the application when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
+    new TabManager();
     new ScriptureWallpaperGenerator();
 });
 
@@ -465,17 +500,19 @@ class CanvasWallpaperEditor {
         this.ctx = this.canvas.getContext('2d');
         this.currentVerse = '';
         this.currentReference = '';
+        this.phoneBackgroundImage = null;
         
         // Set canvas size (full resolution)
         this.actualWidth = 1080;
         this.actualHeight = 2340;
         
-        // Set canvas dimensions (100% scale)
+        // Set canvas to full resolution
         this.canvas.width = this.actualWidth;
         this.canvas.height = this.actualHeight;
         
         this.initializeControls();
         this.bindEvents();
+        this.loadPhoneBackground();
         this.renderCanvas();
     }
     
@@ -484,6 +521,8 @@ class CanvasWallpaperEditor {
             verseInput: document.getElementById('canvas-verse-input'),
             versionSelect: document.getElementById('canvas-version-select'),
             fetchBtn: document.getElementById('fetch-verse-btn'),
+            pasteBtn: document.getElementById('paste-verse-btn'),
+            fetchDownloadBtn: document.getElementById('fetch-download-btn'),
             topBoundary: document.getElementById('canvas-top-boundary'),
             topBoundaryValue: document.getElementById('canvas-top-boundary-value'),
             bottomBoundary: document.getElementById('canvas-bottom-boundary'),
@@ -500,6 +539,12 @@ class CanvasWallpaperEditor {
     bindEvents() {
         // Fetch verse button
         this.controls.fetchBtn.addEventListener('click', () => this.fetchVerse());
+        
+        // Paste button
+        this.controls.pasteBtn.addEventListener('click', () => this.pasteFromClipboard());
+        
+        // Download verse button
+        this.controls.fetchDownloadBtn.addEventListener('click', () => this.fetchAndDownload());
         
         // Enter key on verse input
         this.controls.verseInput.addEventListener('keypress', (e) => {
@@ -533,13 +578,31 @@ class CanvasWallpaperEditor {
         this.controls.resetBtn.addEventListener('click', () => this.resetCanvas());
     }
     
+    loadPhoneBackground() {
+        this.phoneBackgroundImage = new Image();
+        this.phoneBackgroundImage.src = 'phone_home_wallpaper.jpeg';
+    }
+    
+    async pasteFromClipboard() {
+        try {
+            const text = await navigator.clipboard.readText();
+            if (text.trim()) {
+                this.controls.verseInput.value = text.trim();
+            }
+        } catch (err) {
+            console.error('Failed to read clipboard:', err);
+            // Fallback: focus the input for manual paste
+            this.controls.verseInput.focus();
+        }
+    }
+    
     async fetchVerse() {
         const verse = this.controls.verseInput.value.trim();
         const version = this.controls.versionSelect.value;
         if (!verse) return;
         
         try {
-            this.controls.fetchBtn.textContent = 'Fetching...';
+            this.controls.fetchBtn.textContent = 'Fetching and Previewing...';
             this.controls.fetchBtn.disabled = true;
             
             // Get current boundary settings to calculate optimal font size
@@ -582,22 +645,86 @@ class CanvasWallpaperEditor {
             console.error('Error fetching verse:', error);
             alert('Failed to fetch verse. Please try again.');
         } finally {
-            this.controls.fetchBtn.textContent = 'Fetch Verse';
+            this.controls.fetchBtn.textContent = 'Fetch and Preview';
             this.controls.fetchBtn.disabled = false;
         }
     }
     
+    async fetchAndDownload() {
+        const verse = this.controls.verseInput.value.trim();
+        const version = this.controls.versionSelect.value;
+        if (!verse) return;
+        
+        try {
+            this.controls.fetchDownloadBtn.textContent = 'Fetching and Downloading...';
+            this.controls.fetchDownloadBtn.disabled = true;
+            
+            // Get current boundary settings to calculate optimal font size
+            const topBoundaryPercent = parseFloat(this.controls.topBoundary.value);
+            const bottomBoundaryPercent = parseFloat(this.controls.bottomBoundary.value);
+            const screenHeight = 2340; // Default screen height
+            
+            // Calculate boundaries in pixels
+            const topBoundaryPixels = Math.round(screenHeight * (topBoundaryPercent / 100));
+            const bottomBoundaryPixels = Math.round(screenHeight * ((100 - bottomBoundaryPercent) / 100));
+            
+            // Use the new verse-data endpoint with boundary parameters
+            const url = `http://localhost:8000/api/verse-data?q=${encodeURIComponent(verse)}&version=${version}&screen_height=${screenHeight}&top_boundary_percent=${topBoundaryPercent}&bottom_boundary_percent=${bottomBoundaryPercent}`;
+            const response = await fetch(url);
+            
+            if (!response.ok) {
+                throw new Error(`Failed to fetch verse: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            this.currentVerse = data.text;
+            this.currentReference = data.reference;
+            
+            // Set the font size slider to the optimal font size from API
+            if (data.optimal_font_size) {
+                const optimalSize = data.optimal_font_size;
+                const minSize = Math.max(20, Math.round(optimalSize * 0.5)); // Ensure minimum is 20px
+                const maxSize = Math.round(optimalSize * 2);
+                
+                // Update slider range
+                this.controls.fontSizeSlider.min = minSize;
+                this.controls.fontSizeSlider.max = maxSize;
+                this.controls.fontSizeSlider.value = optimalSize;
+                this.controls.fontSizeValue.textContent = optimalSize + 'px';
+            }
+            
+            // Render the canvas first
+            this.renderCanvas();
+            
+            // Then download it with readiness check
+            setTimeout(() => {
+                this.downloadCanvasWithReadyCheck();
+            }, 100);
+            
+        } catch (error) {
+            console.error('Error fetching verse:', error);
+            alert('Failed to fetch verse. Please try again.');
+        } finally {
+            this.controls.fetchDownloadBtn.textContent = 'Fetch and Download';
+            this.controls.fetchDownloadBtn.disabled = false;
+        }
+    }
+    
     renderCanvas() {
+        // Get canvas dimensions (full resolution)
+        const canvasWidth = this.canvas.width;
+        const canvasHeight = this.canvas.height;
+        
         // Clear canvas with black background
         this.ctx.fillStyle = '#000000';
-        this.ctx.fillRect(0, 0, this.actualWidth, this.actualHeight);
+        this.ctx.fillRect(0, 0, canvasWidth, canvasHeight);
         
         if (!this.currentVerse) {
-            // Show placeholder text
+            // Show placeholder text (full resolution)
             this.ctx.fillStyle = '#666666';
-            this.ctx.font = '300 48px "Montserrat", Arial, sans-serif';
+            this.ctx.font = `300 48px "Montserrat", Arial, sans-serif`;
             this.ctx.textAlign = 'center';
-            this.ctx.fillText('Enter a Bible verse above', this.actualWidth / 2, this.actualHeight / 2);
+            this.ctx.fillText('Enter a Bible verse above', canvasWidth / 2, canvasHeight / 2);
             return;
         }
         
@@ -607,27 +734,25 @@ class CanvasWallpaperEditor {
         let currentFontSize = parseInt(this.controls.fontSizeSlider.value);
         const lineSpacing = parseFloat(this.controls.lineSpacingSlider.value);
         
-        // Calculate text area boundaries - CORRECTED LOGIC
-        // Top X% unusable = text starts at X% from top
-        // Bottom Y% unusable = text ends at (100-Y)% from top
-        const topBoundary = Math.round(this.actualHeight * (topBoundaryPercent / 100));
-        const bottomBoundary = Math.round(this.actualHeight * ((100 - bottomBoundaryPercent) / 100));
+        // Calculate text area boundaries (full resolution)
+        const topBoundary = Math.round(canvasHeight * (topBoundaryPercent / 100));
+        const bottomBoundary = Math.round(canvasHeight * ((100 - bottomBoundaryPercent) / 100));
         
-        // Add boundary margins (matching image generator)
+        // Add boundary margins (full resolution)
         const boundaryMargin = 40;
         const textAreaTop = topBoundary + boundaryMargin;
         const textAreaBottom = bottomBoundary - boundaryMargin;
         const availableHeight = textAreaBottom - textAreaTop;
         
-        // Set text properties with Montserrat Light
+        // Set text properties with Montserrat Light (full resolution)
         this.ctx.fillStyle = '#ffffff';
         this.ctx.font = `300 ${currentFontSize}px "Montserrat", Arial, sans-serif`; // 300 = Light weight
         this.ctx.textAlign = 'center';
         this.ctx.textBaseline = 'top'; // Changed from 'middle' to 'top' for precise positioning
         
-        // Calculate text area with margins
+        // Calculate text area with margins (full resolution)
         const margin = 80;
-        const maxWidth = this.actualWidth - (margin * 2);
+        const maxWidth = canvasWidth - (margin * 2);
         let lines = this.wrapText(this.currentVerse, maxWidth);
         
         // Font size reduction logic (matching image generator exactly)
@@ -638,7 +763,7 @@ class CanvasWallpaperEditor {
         
         // Keep reducing font size until content fits (minimum 20px)
         while (currentFontSize > 20) {
-            // Calculate text block height with current font size
+            // Calculate text block height with current font size (full resolution)
             this.ctx.font = `300 ${currentFontSize}px "Montserrat", Arial, sans-serif`;
             const metrics = this.ctx.measureText('Ag');
             actualLineHeight = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
@@ -673,11 +798,11 @@ class CanvasWallpaperEditor {
         // Center content within available area (matching image generator logic)
         const startY = textAreaTop + Math.floor((availableHeight - totalContentHeight) / 2);
 
-        // Draw verse text with proper line spacing using calculated font size
+        // Draw verse text with proper line spacing using calculated font size (full resolution)
         this.ctx.font = `300 ${currentFontSize}px "Montserrat", Arial, sans-serif`;
         let currentY = startY;
         lines.forEach((line, index) => {
-            this.ctx.fillText(line, this.actualWidth / 2, currentY);
+            this.ctx.fillText(line, canvasWidth / 2, currentY);
             // Add line height + spacing for next line (but not for last line)
             if (index < lines.length - 1) {
                 currentY += actualLineHeight + (actualLineHeight * (lineSpacing - 1));
@@ -690,7 +815,7 @@ class CanvasWallpaperEditor {
         if (this.currentReference) {
             this.ctx.font = `300 ${referenceFontSize}px "Montserrat", Arial, sans-serif`;
             currentY += 40; // spaceBetween
-            this.ctx.fillText(this.currentReference, this.actualWidth / 2, currentY);
+            this.ctx.fillText(this.currentReference, canvasWidth / 2, currentY);
         }
     }
     
@@ -718,13 +843,42 @@ class CanvasWallpaperEditor {
         return lines;
     }
     
+    downloadCanvasWithReadyCheck() {
+        if (!this.currentVerse) {
+            alert('Please fetch a verse first!');
+            return;
+        }
+        
+        // Check if canvas is ready by verifying it has content
+        const ctx = this.canvas.getContext('2d');
+        const imageData = ctx.getImageData(0, 0, this.canvas.width, this.canvas.height);
+        
+        // Check if canvas has any non-transparent pixels (indicating content)
+        let hasContent = false;
+        for (let i = 3; i < imageData.data.length; i += 4) { // Check alpha channel
+            if (imageData.data[i] > 0) {
+                hasContent = true;
+                break;
+            }
+        }
+        
+        if (!hasContent) {
+            // Canvas is not ready, wait for next animation frame and try again
+            requestAnimationFrame(() => this.downloadCanvasWithReadyCheck());
+            return;
+        }
+        
+        // Canvas is ready, proceed with download
+        this.downloadCanvas();
+    }
+    
     downloadCanvas() {
         if (!this.currentVerse) {
             alert('Please fetch a verse first!');
             return;
         }
         
-        // Create download link
+        // Canvas is already at full resolution, so download directly
         this.canvas.toBlob((blob) => {
             const url = URL.createObjectURL(blob);
             const a = document.createElement('a');
@@ -760,6 +914,7 @@ class CanvasWallpaperEditor {
         // Re-render canvas
         this.renderCanvas();
     }
+
 }
 
 // Initialize Canvas Editor when DOM is loaded

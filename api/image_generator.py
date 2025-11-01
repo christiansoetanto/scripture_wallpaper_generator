@@ -18,7 +18,7 @@ TEXT_COLOR = (255, 255, 255)  # White text
 # Font settings - increased for better readability on mobile
 FONT_PATH = os.path.join(os.path.dirname(__file__), 'assets', 'fonts', 'Montserrat-Light.ttf')
 MAIN_FONT_SIZE = 64  # Increased from 48 for better mobile readability
-REFERENCE_FONT_SIZE = 42  # Increased from 32 for better mobile readability
+REFERENCE_FONT_SIZE = 64  # Same size as main text for consistency
 
 # Layout settings
 MARGIN = 80  # Margin from edges
@@ -121,6 +121,80 @@ def calculate_text_height(lines: List[str], font: ImageFont.FreeTypeFont, line_s
         total_height += line_height * (line_spacing - 1) * (len(lines) - 1)
     
     return int(total_height)
+
+def calculate_optimal_font_size(verse_text: str, reference: str, top_boundary: int = DEFAULT_TOP_BOUNDARY, bottom_boundary: int = DEFAULT_BOTTOM_BOUNDARY) -> int:
+    """
+    Calculate the optimal font size that fits the text within the specified boundaries.
+    
+    Args:
+        verse_text: The Bible verse text
+        reference: The Bible reference (e.g., "John 3:16")
+        top_boundary: Top boundary for text area in pixels from top of image
+        bottom_boundary: Bottom boundary for text area in pixels from top of image
+    
+    Returns:
+        The optimal font size in pixels
+    """
+    # Create a temporary draw object for calculations
+    temp_img = Image.new('RGB', (IMAGE_WIDTH, IMAGE_HEIGHT), BACKGROUND_COLOR)
+    draw = ImageDraw.Draw(temp_img)
+    
+    # Calculate available space for text using boundaries
+    available_width = IMAGE_WIDTH - (2 * MARGIN)
+    text_area_top = top_boundary + BOUNDARY_MARGIN
+    text_area_bottom = bottom_boundary - BOUNDARY_MARGIN
+    available_height = text_area_bottom - text_area_top
+    
+    # Add a minimal safety margin to ensure text doesn't look cramped (2% of available height)
+    safety_margin = int(available_height * 0.02)
+    available_height_with_margin = available_height - safety_margin
+    
+    # Start with the default font size and work down if needed
+    current_font_size = MAIN_FONT_SIZE
+    last_fitting_size = 20  # Keep track of the last size that fit
+    
+    while current_font_size > 20:  # Minimum font size
+        # Load fonts at current size
+        main_font = load_font(current_font_size)
+        reference_font = load_font(current_font_size)  # Both same size now
+        
+        # Get reference dimensions
+        ref_bbox = draw.textbbox((0, 0), reference, font=reference_font)
+        ref_height = ref_bbox[3] - ref_bbox[1]
+        
+        # Wrap the main text
+        wrapped_lines = wrap_text(verse_text, main_font, available_width)
+        
+        # Calculate text height
+        text_height = calculate_text_height(wrapped_lines, main_font, LINE_SPACING)
+        
+        # Total content height (verse + spacing + reference)
+        total_content_height = text_height + SPACING_BETWEEN_VERSE_AND_REFERENCE + ref_height
+        
+        # If it fits with safety margin, continue to find the largest size that fits
+        if total_content_height <= available_height_with_margin:
+            last_fitting_size = current_font_size
+            # Try to go back up by 1 to find the exact optimal size
+            if current_font_size < MAIN_FONT_SIZE:
+                test_size = current_font_size + 1
+                test_main_font = load_font(test_size)
+                test_reference_font = load_font(test_size)
+                test_ref_bbox = draw.textbbox((0, 0), reference, font=test_reference_font)
+                test_ref_height = test_ref_bbox[3] - test_ref_bbox[1]
+                test_wrapped_lines = wrap_text(verse_text, test_main_font, available_width)
+                test_text_height = calculate_text_height(test_wrapped_lines, test_main_font, LINE_SPACING)
+                test_total_height = test_text_height + SPACING_BETWEEN_VERSE_AND_REFERENCE + test_ref_height
+                
+                if test_total_height <= available_height_with_margin:
+                    return test_size
+            return current_font_size
+        
+        # Otherwise, try smaller font size
+        current_font_size -= 2
+    
+    # Return the last size that fit, or minimum font size
+    return max(last_fitting_size, 20)
+
 
 def generate_wallpaper(verse_text: str, reference: str, top_boundary: int = DEFAULT_TOP_BOUNDARY, bottom_boundary: int = DEFAULT_BOTTOM_BOUNDARY) -> io.BytesIO:
     """

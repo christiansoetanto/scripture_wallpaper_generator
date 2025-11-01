@@ -169,13 +169,34 @@ def clean_verse_text(text: str) -> str:
     # First, normalize line breaks and remove excessive whitespace
     # But preserve intentional line breaks (like between verses)
     text = re.sub(r'\r\n|\r', '\n', text)  # Normalize line endings
-    text = re.sub(r'\n\s*\n', '\n', text)  # Remove empty lines
-    text = re.sub(r'[ \t]+', ' ', text)    # Normalize spaces and tabs
+    
+    # Remove excessive empty lines (3+ consecutive newlines) but preserve single/double breaks
+    text = re.sub(r'\n\s*\n\s*\n+', '\n\n', text)  # Replace 3+ newlines with double newline
+    
+    # Clean up whitespace on each line but preserve line structure
+    lines = text.split('\n')
+    cleaned_lines = []
+    for line in lines:
+        # Clean whitespace within each line
+        cleaned_line = re.sub(r'[ \t]+', ' ', line).strip()
+        cleaned_lines.append(cleaned_line)
+    
+    # Rejoin lines and remove any completely empty lines while preserving verse breaks
+    text = '\n'.join(cleaned_lines)
+    
+    # Remove multiple consecutive empty lines but keep single empty lines (verse separators)
+    text = re.sub(r'\n\n\n+', '\n\n', text)  # Max 2 consecutive newlines
+    
     text = text.strip()
     
+    # Handle concatenated verse numbers with words FIRST (e.g., "1Blessed" -> "Blessed")
+    text = re.sub(r'^\d+([A-Z][a-z]+)', r'\1', text)  # Remove verse numbers concatenated with words at start
+    text = re.sub(r'\n\d+([A-Z][a-z]+)', r'\n\1', text)  # Remove verse numbers concatenated with words after newlines
+    
     # Remove verse numbers at the beginning of text or after newlines
-    text = re.sub(r'^\d+\s*', '', text)
-    text = re.sub(r'\n\d+\s*', '\n', text)
+    # Only remove verse numbers that are clearly separated by space to avoid removing "Blessed"
+    text = re.sub(r'^\d+\s+', '', text)  # Remove verse numbers at start only if followed by space
+    text = re.sub(r'\n\d+\s+', '\n', text)  # Remove verse numbers after newlines only if followed by space
     
     # Remove common BibleGateway artifacts
     artifacts = [
@@ -216,20 +237,85 @@ def clean_verse_text(text: str) -> str:
         '©'
     ]
     
+    # Remove pericope titles and book divisions (common patterns)
+    pericope_patterns = [
+        r'BOOK\s+[IVX]+\s*',  # BOOK I, BOOK II, etc.
+        r'TheTwoWays',
+        r'The Two Ways',
+        r'A Psalm of David',
+        r'A Song of Ascents',
+        r'To the choirmaster',
+        r'For the director of music',
+        r'A maskil',
+        r'A miktam',
+        r'Selah',
+        r'Of David\.?\s*A?\s*Psalm\.?',  # "Of David. A Psalm." or "Of David"
+        r'Of Solomon',
+        r'Of Asaph',
+        r'Of the Sons of Korah',
+        r'A Prayer of',
+        r'The Prayer of',
+        r'Psalm\s+\d+',  # Psalm 1, Psalm 23, etc.
+        r'^\s*\.\s*A\s*Psalm\.\s*$',  # Leftover ". A Psalm."
+        r'^[A-Z][a-z]+[A-Z][a-z]+\s*$',  # CamelCase titles like "TheTwoWays" (whole line only)
+    ]
+    
     for artifact in artifacts:
         text = text.replace(artifact, '')
     
-    # Handle potential spacing issues around titles/headers
+    # Remove pericope patterns
+    for pattern in pericope_patterns:
+        text = re.sub(pattern, '', text, flags=re.IGNORECASE)
+    
+    # Handle potential spacing issues around titles/headers and words
     # Fix missing spaces between title and content (e.g., "ShepherdA Psalm" -> "Shepherd A Psalm")
     text = re.sub(r'([a-z])([A-Z])', r'\1 \2', text)
     
-    # Convert any remaining newlines to spaces for single-paragraph verses
-    text = re.sub(r'\n+', ' ', text)
+    # Fix common word concatenation issues
+    # Handle cases like "manwho" -> "man who", "Blessedis" -> "Blessed is"
+    common_word_fixes = [
+        (r'\bmanwho\b', 'man who'),
+        (r'\bBlessedis\b', 'Blessed is'),
+        (r'\bwhowalks\b', 'who walks'),
+        (r'\bwhodoes\b', 'who does'),
+        (r'\bwhostands\b', 'who stands'),
+        (r'\bwhosits\b', 'who sits'),
+        (r'\bwhose\b', 'whose'),  # This might already be correct, but ensure it's not concatenated
+        (r'\bthelaw\b', 'the law'),
+        (r'\bofthe\b', 'of the'),
+        (r'\binthe\b', 'in the'),
+        (r'\bonhis\b', 'on his'),
+        (r'\bandwho\b', 'and who'),
+        (r'\bbutwhose\b', 'but whose'),
+    ]
     
-    # Final cleanup: normalize spaces and trim
-    text = re.sub(r'\s+', ' ', text)
+    for pattern, replacement in common_word_fixes:
+        text = re.sub(pattern, replacement, text, flags=re.IGNORECASE)
+    
+    # Clean up excessive whitespace within lines but preserve line breaks
+    lines = text.split('\n')
+    cleaned_lines = []
+    for line in lines:
+        # Normalize spaces within each line
+        cleaned_line = re.sub(r'\s+', ' ', line).strip()
+        if cleaned_line:  # Only keep non-empty lines
+            cleaned_lines.append(cleaned_line)
+        elif len(cleaned_lines) > 0 and cleaned_lines[-1] != '':
+            # Keep empty lines as verse separators, but avoid multiple consecutive empty lines
+            cleaned_lines.append('')
+    
+    text = '\n'.join(cleaned_lines)
     text = text.strip()
     
+    # Fix spacing after punctuation marks
+    # Add space after commas, semicolons, and periods if not already present
+    text = re.sub(r',(?!\s)', ', ', text)  # Add space after comma if not followed by space
+    text = re.sub(r';(?!\s)', '; ', text)  # Add space after semicolon if not followed by space
+    text = re.sub(r'\.(?!\s|$)', '. ', text)  # Add space after period if not followed by space or end of string
+    
+    # Clean up any double spaces that might have been created
+    text = re.sub(r'\s+', ' ', text)
+
     return text
 
 if __name__ == "__main__":

@@ -457,3 +457,312 @@ document.addEventListener('visibilitychange', () => {
         }
     }
 });
+
+// Canvas Editor Class
+class CanvasWallpaperEditor {
+    constructor() {
+        this.canvas = document.getElementById('wallpaper-canvas');
+        this.ctx = this.canvas.getContext('2d');
+        this.currentVerse = '';
+        this.currentReference = '';
+        
+        // Set canvas size (full resolution)
+        this.actualWidth = 1080;
+        this.actualHeight = 2340;
+        
+        // Set canvas dimensions (100% scale)
+        this.canvas.width = this.actualWidth;
+        this.canvas.height = this.actualHeight;
+        
+        this.initializeControls();
+        this.bindEvents();
+        this.renderCanvas();
+    }
+    
+    initializeControls() {
+        this.controls = {
+            verseInput: document.getElementById('canvas-verse-input'),
+            versionSelect: document.getElementById('canvas-version-select'),
+            fetchBtn: document.getElementById('fetch-verse-btn'),
+            topBoundary: document.getElementById('canvas-top-boundary'),
+            topBoundaryValue: document.getElementById('canvas-top-boundary-value'),
+            bottomBoundary: document.getElementById('canvas-bottom-boundary'),
+            bottomBoundaryValue: document.getElementById('canvas-bottom-boundary-value'),
+            fontSizeSlider: document.getElementById('canvas-font-size'),
+            fontSizeValue: document.getElementById('canvas-font-size-value'),
+            lineSpacingSlider: document.getElementById('canvas-line-spacing'),
+            lineSpacingValue: document.getElementById('canvas-line-spacing-value'),
+            downloadBtn: document.getElementById('download-canvas-btn'),
+            resetBtn: document.getElementById('reset-canvas-btn')
+        };
+    }
+    
+    bindEvents() {
+        // Fetch verse button
+        this.controls.fetchBtn.addEventListener('click', () => this.fetchVerse());
+        
+        // Enter key on verse input
+        this.controls.verseInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') this.fetchVerse();
+        });
+        
+        // Boundary controls
+        this.controls.topBoundary.addEventListener('input', (e) => {
+            this.controls.topBoundaryValue.textContent = e.target.value + '%';
+            this.renderCanvas();
+        });
+        
+        this.controls.bottomBoundary.addEventListener('input', (e) => {
+            this.controls.bottomBoundaryValue.textContent = e.target.value + '%';
+            this.renderCanvas();
+        });
+        
+        // Sliders with real-time updates
+        this.controls.fontSizeSlider.addEventListener('input', (e) => {
+            this.controls.fontSizeValue.textContent = e.target.value + 'px';
+            this.renderCanvas();
+        });
+        
+        this.controls.lineSpacingSlider.addEventListener('input', (e) => {
+            this.controls.lineSpacingValue.textContent = e.target.value;
+            this.renderCanvas();
+        });
+        
+        // Action buttons
+        this.controls.downloadBtn.addEventListener('click', () => this.downloadCanvas());
+        this.controls.resetBtn.addEventListener('click', () => this.resetCanvas());
+    }
+    
+    async fetchVerse() {
+        const verse = this.controls.verseInput.value.trim();
+        const version = this.controls.versionSelect.value;
+        if (!verse) return;
+        
+        try {
+            this.controls.fetchBtn.textContent = 'Fetching...';
+            this.controls.fetchBtn.disabled = true;
+            
+            // Get current boundary settings to calculate optimal font size
+            const topBoundaryPercent = parseFloat(this.controls.topBoundary.value);
+            const bottomBoundaryPercent = parseFloat(this.controls.bottomBoundary.value);
+            const screenHeight = 2340; // Default screen height
+            
+            // Calculate boundaries in pixels
+            const topBoundaryPixels = Math.round(screenHeight * (topBoundaryPercent / 100));
+            const bottomBoundaryPixels = Math.round(screenHeight * ((100 - bottomBoundaryPercent) / 100));
+            
+            // Use the new verse-data endpoint with boundary parameters
+            const url = `http://localhost:8000/api/verse-data?q=${encodeURIComponent(verse)}&version=${version}&screen_height=${screenHeight}&top_boundary_percent=${topBoundaryPercent}&bottom_boundary_percent=${bottomBoundaryPercent}`;
+            const response = await fetch(url);
+            
+            if (!response.ok) {
+                throw new Error(`Failed to fetch verse: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            this.currentVerse = data.text;
+            this.currentReference = data.reference;
+            
+            // Set the font size slider to the optimal font size from API
+            if (data.optimal_font_size) {
+                const optimalSize = data.optimal_font_size;
+                const minSize = Math.max(20, Math.round(optimalSize * 0.5)); // Ensure minimum is 20px
+                const maxSize = Math.round(optimalSize * 2);
+                
+                // Update slider range
+                this.controls.fontSizeSlider.min = minSize;
+                this.controls.fontSizeSlider.max = maxSize;
+                this.controls.fontSizeSlider.value = optimalSize;
+                this.controls.fontSizeValue.textContent = optimalSize + 'px';
+            }
+            
+            this.renderCanvas();
+            
+        } catch (error) {
+            console.error('Error fetching verse:', error);
+            alert('Failed to fetch verse. Please try again.');
+        } finally {
+            this.controls.fetchBtn.textContent = 'Fetch Verse';
+            this.controls.fetchBtn.disabled = false;
+        }
+    }
+    
+    renderCanvas() {
+        // Clear canvas with black background
+        this.ctx.fillStyle = '#000000';
+        this.ctx.fillRect(0, 0, this.actualWidth, this.actualHeight);
+        
+        if (!this.currentVerse) {
+            // Show placeholder text
+            this.ctx.fillStyle = '#666666';
+            this.ctx.font = '300 48px "Montserrat", Arial, sans-serif';
+            this.ctx.textAlign = 'center';
+            this.ctx.fillText('Enter a Bible verse above', this.actualWidth / 2, this.actualHeight / 2);
+            return;
+        }
+        
+        // Get current settings
+        const topBoundaryPercent = parseFloat(this.controls.topBoundary.value);
+        const bottomBoundaryPercent = parseFloat(this.controls.bottomBoundary.value);
+        let currentFontSize = parseInt(this.controls.fontSizeSlider.value);
+        const lineSpacing = parseFloat(this.controls.lineSpacingSlider.value);
+        
+        // Calculate text area boundaries - CORRECTED LOGIC
+        // Top X% unusable = text starts at X% from top
+        // Bottom Y% unusable = text ends at (100-Y)% from top
+        const topBoundary = Math.round(this.actualHeight * (topBoundaryPercent / 100));
+        const bottomBoundary = Math.round(this.actualHeight * ((100 - bottomBoundaryPercent) / 100));
+        
+        // Add boundary margins (matching image generator)
+        const boundaryMargin = 40;
+        const textAreaTop = topBoundary + boundaryMargin;
+        const textAreaBottom = bottomBoundary - boundaryMargin;
+        const availableHeight = textAreaBottom - textAreaTop;
+        
+        // Set text properties with Montserrat Light
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.font = `300 ${currentFontSize}px "Montserrat", Arial, sans-serif`; // 300 = Light weight
+        this.ctx.textAlign = 'center';
+        this.ctx.textBaseline = 'top'; // Changed from 'middle' to 'top' for precise positioning
+        
+        // Calculate text area with margins
+        const margin = 80;
+        const maxWidth = this.actualWidth - (margin * 2);
+        let lines = this.wrapText(this.currentVerse, maxWidth);
+        
+        // Font size reduction logic (matching image generator exactly)
+        let totalContentHeight;
+        let actualLineHeight;
+        let referenceHeight;
+        let referenceFontSize;
+        
+        // Keep reducing font size until content fits (minimum 20px)
+        while (currentFontSize > 20) {
+            // Calculate text block height with current font size
+            this.ctx.font = `300 ${currentFontSize}px "Montserrat", Arial, sans-serif`;
+            const metrics = this.ctx.measureText('Ag');
+            actualLineHeight = metrics.actualBoundingBoxAscent + metrics.actualBoundingBoxDescent;
+            
+            // Re-wrap text with current font size
+            lines = this.wrapText(this.currentVerse, maxWidth);
+            
+            // Calculate verse height with proper line spacing (matching PIL logic)
+            let verseHeight = actualLineHeight * lines.length;
+            if (lines.length > 1) {
+                verseHeight += actualLineHeight * (lineSpacing - 1) * (lines.length - 1);
+            }
+            
+            // Reference uses same font size as verse
+            referenceFontSize = currentFontSize;
+            this.ctx.font = `300 ${referenceFontSize}px "Montserrat", Arial, sans-serif`;
+            const refMetrics = this.ctx.measureText('Ag');
+            referenceHeight = refMetrics.actualBoundingBoxAscent + refMetrics.actualBoundingBoxDescent;
+            
+            const spaceBetween = 40;
+            totalContentHeight = verseHeight + spaceBetween + referenceHeight;
+            
+            // If content fits, break out of loop
+            if (totalContentHeight <= availableHeight) {
+                break;
+            }
+            
+            // Reduce font size by 2px (matching image generator)
+            currentFontSize -= 2;
+        }
+
+        // Center content within available area (matching image generator logic)
+        const startY = textAreaTop + Math.floor((availableHeight - totalContentHeight) / 2);
+
+        // Draw verse text with proper line spacing using calculated font size
+        this.ctx.font = `300 ${currentFontSize}px "Montserrat", Arial, sans-serif`;
+        let currentY = startY;
+        lines.forEach((line, index) => {
+            this.ctx.fillText(line, this.actualWidth / 2, currentY);
+            // Add line height + spacing for next line (but not for last line)
+            if (index < lines.length - 1) {
+                currentY += actualLineHeight + (actualLineHeight * (lineSpacing - 1));
+            } else {
+                currentY += actualLineHeight; // Just line height for last line
+            }
+        });
+ 
+        // Draw reference with smaller font size (matching image generator)
+        if (this.currentReference) {
+            this.ctx.font = `300 ${referenceFontSize}px "Montserrat", Arial, sans-serif`;
+            currentY += 40; // spaceBetween
+            this.ctx.fillText(this.currentReference, this.actualWidth / 2, currentY);
+        }
+    }
+    
+    wrapText(text, maxWidth) {
+        const words = text.split(' ');
+        const lines = [];
+        let currentLine = '';
+        
+        for (let word of words) {
+            const testLine = currentLine + (currentLine ? ' ' : '') + word;
+            const metrics = this.ctx.measureText(testLine);
+            
+            if (metrics.width > maxWidth && currentLine) {
+                lines.push(currentLine);
+                currentLine = word;
+            } else {
+                currentLine = testLine;
+            }
+        }
+        
+        if (currentLine) {
+            lines.push(currentLine);
+        }
+        
+        return lines;
+    }
+    
+    downloadCanvas() {
+        if (!this.currentVerse) {
+            alert('Please fetch a verse first!');
+            return;
+        }
+        
+        // Create download link
+        this.canvas.toBlob((blob) => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `scripture-wallpaper-${this.currentReference.replace(/[^a-zA-Z0-9]/g, '-')}.png`;
+            a.style.display = 'none';
+            
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            
+            setTimeout(() => URL.revokeObjectURL(url), 100);
+        }, 'image/png', 1.0);
+    }
+    
+    resetCanvas() {
+        // Reset all controls to default values
+        this.controls.verseInput.value = 'mt 16:16-18';
+        this.controls.versionSelect.value = 'RSVCE - Revised Standard Version Catholic Edition';
+        this.controls.topBoundary.value = '38';
+        this.controls.topBoundaryValue.textContent = '38%';
+        this.controls.bottomBoundary.value = '31';
+        this.controls.bottomBoundaryValue.textContent = '31%';
+        this.controls.fontSizeSlider.value = '64';
+        this.controls.fontSizeValue.textContent = '64pt';
+        this.controls.lineSpacingSlider.value = '1.4';
+        this.controls.lineSpacingValue.textContent = '1.4';
+        
+        // Clear verse data
+        this.currentVerse = '';
+        this.currentReference = '';
+        
+        // Re-render canvas
+        this.renderCanvas();
+    }
+}
+
+// Initialize Canvas Editor when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    const canvasEditor = new CanvasWallpaperEditor();
+});

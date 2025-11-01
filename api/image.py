@@ -11,7 +11,7 @@ import traceback
 # Import our custom modules
 from bible_parser import format_for_biblegateway, generate_filename
 from bible_scraper import scrape_bible_verse
-from image_generator import create_wallpaper_from_verse_data
+from image_generator import create_wallpaper_from_verse_data, calculate_optimal_font_size
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -19,6 +19,82 @@ class handler(BaseHTTPRequestHandler):
         try:
             # Parse the URL and query parameters
             parsed_url = urlparse(self.path)
+            
+            if parsed_url.path == '/api/verse-data':
+                # Return verse data as JSON for Canvas editor
+                query_params = parse_qs(parsed_url.query)
+                q = query_params.get('q', [None])[0]
+                version = query_params.get('version', ['NIV'])[0]
+                top_boundary = query_params.get('top_boundary', [None])[0]
+                bottom_boundary = query_params.get('bottom_boundary', [None])[0]
+                
+                if not q:
+                    self.send_error_response(400, "Missing 'q' parameter")
+                    return
+                
+                # Get verse data using existing scraper
+                verse_data = scrape_bible_verse(q, version)
+                
+                if not verse_data:
+                    self.send_error_response(404, f"Could not find verse: {q}")
+                    return
+                
+                # Calculate boundaries (same logic as image generation)
+                try:
+                    # Check if percentage parameters are provided
+                    screen_height = query_params.get('screen_height', [None])[0]
+                    top_boundary_percent = query_params.get('top_boundary_percent', [None])[0]
+                    bottom_boundary_percent = query_params.get('bottom_boundary_percent', [None])[0]
+                    
+                    if screen_height and top_boundary_percent and bottom_boundary_percent:
+                        # Calculate from percentages
+                        screen_height = int(screen_height)
+                        top_percent = float(top_boundary_percent)
+                        bottom_percent = float(bottom_boundary_percent)
+                        
+                        top_bound = int(screen_height * (top_percent / 100))
+                        bottom_bound = int(screen_height * ((100 - bottom_percent) / 100))
+                    else:
+                        # Fall back to direct pixel values
+                        top_bound = int(top_boundary) if top_boundary else None
+                        bottom_bound = int(bottom_boundary) if bottom_boundary else None
+                        
+                except (ValueError, TypeError):
+                    top_bound = None
+                    bottom_bound = None
+                
+                # Use default boundaries if not provided
+                from image_generator import DEFAULT_TOP_BOUNDARY, DEFAULT_BOTTOM_BOUNDARY
+                if top_bound is None:
+                    top_bound = DEFAULT_TOP_BOUNDARY
+                if bottom_bound is None:
+                    bottom_bound = DEFAULT_BOTTOM_BOUNDARY
+                
+                # Calculate optimal font size
+                optimal_font_size = calculate_optimal_font_size(
+                    verse_data['text'], 
+                    verse_data['reference'], 
+                    top_bound, 
+                    bottom_bound
+                )
+                
+                # Return JSON response
+                response_data = {
+                    'text': verse_data['text'],
+                    'reference': verse_data['reference'],
+                    'optimal_font_size': optimal_font_size
+                }
+                
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.send_header('Access-Control-Allow-Methods', 'GET, OPTIONS')
+                self.send_header('Access-Control-Allow-Headers', 'Content-Type')
+                self.end_headers()
+                
+                self.wfile.write(json.dumps(response_data).encode('utf-8'))
+                return
+            
             query_params = parse_qs(parsed_url.query)
             
             # Extract query parameters

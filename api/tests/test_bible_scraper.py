@@ -283,3 +283,105 @@ class TestScrapeBibleVerse:
             
             result = scrape_bible_verse("John 3:16")
             assert result is None
+
+    @responses.activate
+    def test_psalm1_exact_text_output(self):
+        """Test that Psalm 1 produces the exact expected text after cleaning."""
+        # Expected exact text as specified by the user
+        expected_text = """Blessed is the man who walks not in the counsel of the wicked,
+nor stands in the way of sinners,
+nor sits in the seat of scoffers;
+
+but his delight is in the law of the Lord,
+and on his law he meditates day and night.
+
+He is like a tree planted by streams of water,
+that yields its fruit in its season,
+and its leaf does not wither.
+In all that he does, he prospers.
+
+The wicked are not so,
+but are like chaff which the wind drives away.
+
+Therefore the wicked will not stand in the judgment,
+nor sinners in the congregation of the righteous;
+
+for the Lord knows the way of the righteous,
+but the way of the wicked will perish."""
+        
+        # Mock HTML response that simulates what Bible Gateway might return for Psalm 1
+        # This includes the "manwho" issue and verse numbers that need to be cleaned
+        mock_html = """
+        <html>
+        <body>
+        <div class="passage-text">
+        <div class="passage-content passage-class-0">
+        <div class="version-RSVCE result-text-style-normal text-html">
+        <div class="text">
+        <h3>BOOK I</h3>
+        <h4>TheTwoWays</h4>
+        <p class="chapter-1">
+        <span class="text Ps-1-1">
+        <sup class="versenum">1 </sup>Blessed is the man who walks not in the counsel of the wicked,<br>
+        nor stands in the way of sinners,<br>
+        nor sits in the seat of scoffers;<br>
+        </span>
+        <span class="text Ps-1-2">
+        <sup class="versenum">2 </sup>but his delight is in the law of the <span class="small-caps">Lord</span>,<br>
+        and on his law he meditates day and night.<br>
+        </span>
+        <span class="text Ps-1-3">
+        <sup class="versenum">3 </sup>He is like a tree planted by streams of water,<br>
+        that yields its fruit in its season,<br>
+        and its leaf does not wither.<br>
+        In all that he does, he prospers.<br>
+        </span>
+        <span class="text Ps-1-4">
+        <sup class="versenum">4 </sup>The wicked are not so,<br>
+        but are like chaff which the wind drives away.<br>
+        </span>
+        <span class="text Ps-1-5">
+        <sup class="versenum">5 </sup>Therefore the wicked will not stand in the judgment,<br>
+        nor sinners in the congregation of the righteous;<br>
+        </span>
+        <span class="text Ps-1-6">
+        <sup class="versenum">6 </sup>for the <span class="small-caps">Lord</span> knows the way of the righteous,<br>
+        but the way of the wicked will perish.<br>
+        </span>
+        </p>
+        </div>
+        </div>
+        </div>
+        </div>
+        </body>
+        </html>
+        """
+        
+        responses.add(
+            responses.GET,
+            "https://www.biblegateway.com/passage/?search=Psalm+1&version=RSVCE",
+            body=mock_html,
+            status=200
+        )
+        
+        result = scrape_bible_verse("Psalm 1")
+        
+        # Verify the result structure
+        assert result is not None, "scrape_bible_verse should return a result"
+        assert "text" in result, "Result should contain 'text' key"
+        assert "reference" in result, "Result should contain 'reference' key"
+        
+        # Verify the reference
+        assert result["reference"] == "Psalm 1", f"Expected reference 'Psalm 1', got '{result['reference']}'"
+        
+        # Verify the exact text matches
+        actual_text = result["text"].strip()
+        
+        # Additional checks to ensure specific issues are resolved
+        assert "Blessed" in actual_text, "Text should contain 'Blessed'"
+        assert "manwho" not in actual_text, "Text should not contain 'manwho' (should be fixed to 'man who')"
+        assert "man who" in actual_text, "Text should contain 'man who' (fixed from 'manwho')"
+        assert not actual_text.startswith("is the man"), "Text should not start with 'is the man' (Blessed should be preserved)"
+        
+        # Final assertion for exact match
+        assert actual_text == expected_text, f"Text does not match exactly.\nExpected: {repr(expected_text)}\nActual: {repr(actual_text)}"

@@ -551,6 +551,15 @@ class CanvasWallpaperEditor {
             if (e.key === 'Enter') this.fetchVerse();
         });
         
+        // Accordion toggle
+        const accordionToggle = document.getElementById('advanced-settings-toggle');
+        const accordionContent = document.getElementById('advanced-settings-content');
+        
+        accordionToggle.addEventListener('click', () => {
+            accordionToggle.classList.toggle('active');
+            accordionContent.classList.toggle('active');
+        });
+        
         // Boundary controls
         this.controls.topBoundary.addEventListener('input', (e) => {
             this.controls.topBoundaryValue.textContent = e.target.value + '%';
@@ -602,7 +611,9 @@ class CanvasWallpaperEditor {
         if (!verse) return;
         
         try {
-            this.controls.fetchBtn.textContent = 'Fetching and Previewing...';
+            // Show loading icon instead of changing text
+            const originalContent = this.controls.fetchBtn.innerHTML;
+            this.controls.fetchBtn.innerHTML = '⏳';
             this.controls.fetchBtn.disabled = true;
             
             // Get current boundary settings to calculate optimal font size
@@ -641,11 +652,21 @@ class CanvasWallpaperEditor {
             
             this.renderCanvas();
             
+            // Scroll to canvas preview after successful fetch
+            const previewContainer = document.getElementById('canvas-preview-container');
+            if (previewContainer && previewContainer.style.display !== 'none') {
+                previewContainer.scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'center' 
+                });
+            }
+            
         } catch (error) {
             console.error('Error fetching verse:', error);
             alert('Failed to fetch verse. Please try again.');
         } finally {
-            this.controls.fetchBtn.textContent = 'Fetch and Preview';
+            // Restore original icon
+            this.controls.fetchBtn.innerHTML = '👁️';
             this.controls.fetchBtn.disabled = false;
         }
     }
@@ -655,8 +676,12 @@ class CanvasWallpaperEditor {
         const version = this.controls.versionSelect.value;
         if (!verse) return;
         
+        // Store original icon before starting
+        const originalIcon = this.controls.fetchDownloadBtn.innerHTML;
+        
         try {
-            this.controls.fetchDownloadBtn.textContent = 'Fetching and Downloading...';
+            // Show loading icon and disable button
+            this.controls.fetchDownloadBtn.innerHTML = '⏳';
             this.controls.fetchDownloadBtn.disabled = true;
             
             // Get current boundary settings to calculate optimal font size
@@ -699,13 +724,23 @@ class CanvasWallpaperEditor {
             // Then download it with readiness check
             setTimeout(() => {
                 this.downloadCanvasWithReadyCheck();
+                
+                // Scroll to canvas preview after successful fetch and download
+                const previewContainer = document.getElementById('canvas-preview-container');
+                if (previewContainer && previewContainer.style.display !== 'none') {
+                    previewContainer.scrollIntoView({ 
+                        behavior: 'smooth', 
+                        block: 'center' 
+                    });
+                }
             }, 100);
             
         } catch (error) {
             console.error('Error fetching verse:', error);
             alert('Failed to fetch verse. Please try again.');
         } finally {
-            this.controls.fetchDownloadBtn.textContent = 'Fetch and Download';
+            // Restore original icon and enable button
+            this.controls.fetchDownloadBtn.innerHTML = originalIcon;
             this.controls.fetchDownloadBtn.disabled = false;
         }
     }
@@ -719,13 +754,25 @@ class CanvasWallpaperEditor {
         this.ctx.fillStyle = '#000000';
         this.ctx.fillRect(0, 0, canvasWidth, canvasHeight);
         
+        // Show/hide preview container based on content
+        const previewContainer = document.getElementById('canvas-preview-container');
+        
         if (!this.currentVerse) {
+            // Hide preview when no content
+            if (previewContainer) {
+                previewContainer.style.display = 'none';
+            }
             // Show placeholder text (full resolution)
             this.ctx.fillStyle = '#666666';
             this.ctx.font = `300 48px "Montserrat", Arial, sans-serif`;
             this.ctx.textAlign = 'center';
             this.ctx.fillText('Enter a Bible verse above', canvasWidth / 2, canvasHeight / 2);
             return;
+        }
+        
+        // Show preview when there's content
+        if (previewContainer) {
+            previewContainer.style.display = 'block';
         }
         
         // Get current settings
@@ -878,6 +925,12 @@ class CanvasWallpaperEditor {
             return;
         }
         
+        // Show loading icon and disable button
+        const downloadBtn = this.controls.downloadBtn;
+        const originalIcon = downloadBtn.innerHTML;
+        downloadBtn.innerHTML = '⏳';
+        downloadBtn.disabled = true;
+        
         // Canvas is already at full resolution, so download directly
         this.canvas.toBlob((blob) => {
             const url = URL.createObjectURL(blob);
@@ -891,19 +944,32 @@ class CanvasWallpaperEditor {
             document.body.removeChild(a);
             
             setTimeout(() => URL.revokeObjectURL(url), 100);
+            
+            // Restore original icon and enable button
+            downloadBtn.innerHTML = originalIcon;
+            downloadBtn.disabled = false;
+            
+            // Scroll to canvas preview after download
+            const previewContainer = document.getElementById('canvas-preview-container');
+            if (previewContainer && previewContainer.style.display !== 'none') {
+                previewContainer.scrollIntoView({ 
+                    behavior: 'smooth', 
+                    block: 'center' 
+                });
+            }
         }, 'image/png', 1.0);
     }
     
     resetCanvas() {
         // Reset all controls to default values
-        this.controls.verseInput.value = 'mt 16:16-18';
+        this.controls.verseInput.value = '';
         this.controls.versionSelect.value = 'RSVCE - Revised Standard Version Catholic Edition';
         this.controls.topBoundary.value = '38';
         this.controls.topBoundaryValue.textContent = '38%';
         this.controls.bottomBoundary.value = '31';
         this.controls.bottomBoundaryValue.textContent = '31%';
-        this.controls.fontSizeSlider.value = '64';
-        this.controls.fontSizeValue.textContent = '64pt';
+        this.controls.fontSizeSlider.value = '32';
+        this.controls.fontSizeValue.textContent = '32pt';
         this.controls.lineSpacingSlider.value = '1.4';
         this.controls.lineSpacingValue.textContent = '1.4';
         
